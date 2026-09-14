@@ -120,27 +120,41 @@ MEDIATOR/
 
 ## Building & Flashing
 
-### Prerequisites (Windows)
-All tools are pre-configured in the `build_and_flash.ps1` script:
-- Pico SDK 2.1.0
-- ARM GCC (arm-none-eabi)
-- CMake
-- Ninja
-- picotool
+### Prerequisites
+To build this project, you need the standard Raspberry Pi Pico C/C++ toolchain:
+- **Pico SDK 2.1.0** (or later)
+- **ARM GCC** (`arm-none-eabi-gcc`)
+- **CMake**
+- **Ninja**
 
-### Quick Build & Flash
+On Windows, it is highly recommended to use the official [Pico Setup for Windows](https://github.com/raspberrypi/pico-setup-windows) installer.
 
-1. Open **PowerShell**.
-2. Run:
+### Quick Build & Flash (Windows)
+
+We provide a portable PowerShell script that automates compiling and flashing:
+
+1. Open the **Pico Developer Command Prompt** (or any PowerShell terminal where the Pico SDK tools are in your PATH).
+2. Navigate to the `MEDIATOR` directory.
+3. Run the build script:
    ```powershell
-   & "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\MEDIATOR\build_and_flash.ps1"
+   .\build_and_flash.ps1
    ```
-3. When prompted, put the Pico in **BOOTSEL mode**:
+4. When prompted, put the Pico in **BOOTSEL mode**:
    - Unplug the Pico.
    - Hold the **BOOTSEL** button.
    - Plug it back in.
    - Release the button.
-4. Press **Enter** in PowerShell. The UF2 file is automatically copied to the Pico.
+5. The script will auto-detect the `RPI-RP2` drive, copy the compiled `.uf2` file, and reboot the Pico automatically.
+
+### Manual Build (Linux/macOS)
+
+```bash
+mkdir build
+cd build
+cmake ..
+make -j4
+# Copy bridge.uf2 to your mounted Pico RPI-RP2 drive
+```
 
 ### Configuring Wi-Fi
 Edit the credentials at the top of `src/wifi_server.c`:

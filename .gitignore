@@ -5,3 +5,5 @@ build/
 *.map
 *.hex
 .gemini/
+
+local_env.ps1

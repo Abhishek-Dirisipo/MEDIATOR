@@ -1,32 +1,47 @@
-﻿# MEDIATOR - Build & Flash Script
-# Run this from PowerShell whenever you make code changes.
-# Does NOT source pico-env.ps1 (that script overwrites SDK path with v1.5.1)
+# MEDIATOR - Portable Build & Flash Script
+# Requires: Pico SDK 2.1.0, CMake, Ninja, ARM GCC in your PATH.
+# Run this from the "Pico Developer Command Prompt" on Windows.
 
-$env:PICO_SDK_PATH = "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\pico-sdk-2.1.0"
-$env:PATH = "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\gcc-arm-none-eabi\bin;" +
-            "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\cmake\bin;" +
-            "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\ninja;" +
-            "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\python;" +
-            "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\picotool-bin;" +
-            $env:PATH
+$ScriptDir = $PSScriptRoot
 
-$BuildDir  = "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\MEDIATOR\build"
-$SourceDir = "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\MEDIATOR"
-$Picotool  = "E:\Personal\Hardware Hacking - Raspberry pi pico\PICO 2 W\picotool-bin\picotool\picotool.exe"
+# Load local overrides if they exist (for custom local paths)
+if (Test-Path "$ScriptDir\local_env.ps1") {
+    . "$ScriptDir\local_env.ps1"
+}
 
-# First time / clean build: uncomment these two lines:
-# Remove-Item -Recurse -Force $BuildDir -ErrorAction SilentlyContinue
-# New-Item -ItemType Directory $BuildDir | Out-Null
+$BuildDir  = "$ScriptDir\build"
 
-# Incremental build (only recompiles changed files)
-Set-Location $BuildDir
+# First time setup
+if (-not (Test-Path $BuildDir)) {
+    Write-Host "Creating build directory..."
+    New-Item -ItemType Directory $BuildDir | Out-Null
+    Set-Location $BuildDir
+    cmake .. -G Ninja
+    if ($LASTEXITCODE -ne 0) { Write-Error "CMake configuration failed!"; exit 1 }
+} else {
+    Set-Location $BuildDir
+}
+
+# Build
+Write-Host "Compiling MEDIATOR..."
 ninja
 if ($LASTEXITCODE -ne 0) { Write-Error "Build failed!"; exit 1 }
-Write-Host "Build OK. Put Pico into BOOTSEL mode (hold BOOTSEL, plug in), then press Enter..."
-Read-Host
 
-# Wait for the Pico to appear as a USB mass storage device
-Write-Host "Waiting for Pico drive..."
-while (!(Test-Path "F:\")) { Start-Sleep -Milliseconds 300 }
-Copy-Item -Force "bridge.uf2" "F:\"
-Write-Host "Flashed! Pico will reboot automatically."
+Write-Host "Build OK."
+Write-Host "Please put your Pico into BOOTSEL mode (hold the BOOTSEL button while plugging it in)."
+Write-Host "Waiting for RPI-RP2 drive to mount..."
+
+# Auto-detect RPI-RP2 drive
+$PicoDrive = $null
+while ($null -eq $PicoDrive) {
+    $Drive = Get-Volume | Where-Object { $_.FileSystemLabel -eq 'RPI-RP2' }
+    if ($Drive) { 
+        $PicoDrive = $Drive.DriveLetter + ":\" 
+    } else {
+        Start-Sleep -Milliseconds 300
+    }
+}
+
+Write-Host "Found Pico drive at $PicoDrive. Flashing firmware..."
+Copy-Item -Force "bridge.uf2" $PicoDrive
+Write-Host "Flashed successfully! The Pico will now reboot."
