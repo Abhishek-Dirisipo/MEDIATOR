@@ -136,19 +136,26 @@ On Windows, it is highly recommended to use the official [Pico Setup for Windows
 
 We provide a portable PowerShell script that automates compiling and flashing:
 
-1. **Configure Wi-Fi First:** Open `src/wifi_server.c` in a text editor (like Notepad or VS Code) and change `REDACTED_SSID` and `REDACTED_PASSWORD` to your mobile hotspot's exact name and password. Save the file.
-2. Open the **Pico Developer Command Prompt** (or any PowerShell terminal where the Pico SDK tools are in your PATH).
-3. Navigate to the `MEDIATOR` directory.
-4. Run the build script:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Abhishek-Dirisipo/MEDIATOR.git
+   ```
+2. **Configure Wi-Fi First:** Open `MEDIATOR/src/wifi_server.c` in a text editor (like Notepad or VS Code) and change `REDACTED_SSID` and `REDACTED_PASSWORD` to your mobile hotspot's exact name and password. Save the file.
+3. Open the **Pico Developer Command Prompt** (or any PowerShell terminal where the Pico SDK tools are in your PATH).
+4. Navigate to the `MEDIATOR` directory:
+   ```powershell
+   cd MEDIATOR
+   ```
+5. Run the build script:
    ```powershell
    .\build_and_flash.ps1
    ```
-5. When prompted, put the Pico in **BOOTSEL mode**:
+6. When prompted, put the Pico in **BOOTSEL mode**:
    - Unplug the Pico from your computer.
    - Press and hold down the **BOOTSEL** button (the small **white color button** on the Pico 2 W board).
    - While holding the white button down, plug the Pico back into your computer via USB.
    - Release the white button.
-6. The script will auto-detect the `RPI-RP2` drive, copy the compiled `.uf2` file, and reboot the Pico automatically.
+7. The script will auto-detect the `RPI-RP2` drive, copy the compiled `.uf2` file, and reboot the Pico automatically.
 
 ### Manual Build (Linux/macOS)
 
