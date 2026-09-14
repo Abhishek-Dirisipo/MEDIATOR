@@ -22,7 +22,7 @@ MEDIATOR is a firmware project for the Raspberry Pi Pico 2 W that sits transpare
 
 ## Hardware
 
-![Hardware Setup](assets/hardware_setup.jpg)
+![Hardware Setup](assets/hardware_setup.png)
 
 | Component | Details |
 |---|---|
