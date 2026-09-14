@@ -1,4 +1,4 @@
-﻿# MEDIATOR
+# MEDIATOR
 
 > **USB HID Keyboard Bridge & Keylogger - Raspberry Pi Pico 2 W**
 
@@ -21,6 +21,8 @@ MEDIATOR is a firmware project for the Raspberry Pi Pico 2 W that sits transpare
 ---
 
 ## Hardware
+
+![Hardware Setup](assets/hardware_setup.jpg)
 
 | Component | Details |
 |---|---|
@@ -74,6 +76,8 @@ All keystrokes are buffered in an 8 KB RAM ring buffer and flushed to a dedicate
 
 ### Wi-Fi Dashboard
 The Pico connects asynchronously to a Wi-Fi hotspot (retrying every 5 seconds if unavailable) and serves a web dashboard on port 80.
+
+![Dashboard UI](assets/dashboard.png)
 
 Navigate to `http://<pico-ip>` to:
 - View all captured keystrokes.
