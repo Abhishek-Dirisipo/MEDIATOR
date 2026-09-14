@@ -1,6 +1,6 @@
 # MEDIATOR
 
-> **USB HID Keyboard Bridge & Keylogger - Raspberry Pi Pico 2 W**
+> **USB HID Keyboard Bridge & Keylogger For Red Teaming - Raspberry Pi Pico 2 W**
 
 > [!CAUTION]
 > **LEGAL RED TEAMING ACTIVITY ONLY**
