@@ -31,16 +31,19 @@ MEDIATOR is a firmware project for the Raspberry Pi Pico 2 W that sits transpare
 | **Connection to PC** | USB-A to micro-USB/USB-C cable (acting as device) |
 | **Connection to keyboard** | USB-A female breakout or OTG adapter (acting as host via PIO-USB) |
 
-### Wiring (USB-A Breakout → Pico)
+### Wiring (USB-A Breakout -> Pico)
+
+![Wiring Diagram](assets/wiring_diagram.png)
 
 | Wire | USB Color | Pico Pin |
 |---|---|---|
 | VBUS (5V) | Red | **Pin 40 (VBUS)** |
 | GND | Black | **Pin 38 (GND)** |
-| D− | White | **Pin 19 (GPIO 14)** |
+| D- | White | **Pin 19 (GPIO 14)** |
 | D+ | Green | **Pin 20 (GPIO 15)** |
 
-> The physical keyboard plugs into the USB-A female connector. The Pico's own USB port connects to the target PC.
+> **Note:** The physical keyboard plugs into the USB-A female connector. The Pico's own USB port connects to the target PC.
+> You can connect the Black GND wire to **any** Ground (GND) pin on the Pico (e.g., Pin 3, 13, 18, 23, 28, 33, or 38).
 
 ---
 
