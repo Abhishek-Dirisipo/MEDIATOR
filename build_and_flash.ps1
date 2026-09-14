@@ -1,4 +1,4 @@
-# MEDIATOR — Build & Flash Script
+﻿# MEDIATOR - Build & Flash Script
 # Run this from PowerShell whenever you make code changes.
 # Does NOT source pico-env.ps1 (that script overwrites SDK path with v1.5.1)
 

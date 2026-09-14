@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.13)
+﻿cmake_minimum_required(VERSION 3.13)
 
 # NOTE: Do NOT set PICO_PIO_USB_PATH here.
 # Setting it causes the TinyUSB family.cmake to call pico_generate_pio_header()
-# which triggers an ExternalProject build of pioasm from C++ source — which fails
+# which triggers an ExternalProject build of pioasm from C++ source - which fails
 # without a Windows host C++ compiler. Instead, we wire PIO-USB manually below
 # using the pre-generated usb_tx.pio.h / usb_rx.pio.h that ship in the repo.
 
@@ -24,7 +24,7 @@ target_sources(pio_usb_integrated INTERFACE
     ${PIO_USB_SRC}/pio_usb.c
     ${PIO_USB_SRC}/pio_usb_host.c
     ${PIO_USB_SRC}/usb_crc.c
-    # hcd_pio_usb.c from TinyUSB — the host-controller driver that sits between
+    # hcd_pio_usb.c from TinyUSB - the host-controller driver that sits between
     # TinyUSB host stack and the Pico-PIO-USB library
     ${CMAKE_CURRENT_SOURCE_DIR}/../pico-sdk-2.1.0/lib/tinyusb/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
 )

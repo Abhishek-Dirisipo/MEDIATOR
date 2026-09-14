@@ -1,4 +1,4 @@
-#include <string.h>
+﻿#include <string.h>
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
@@ -14,7 +14,7 @@
 //   [CONFIG  4KB] [PERSIST  4KB] [CIRCULAR 512KB]
 //
 //   0x37E000 - 0x37EFFF : Config sector  (4KB)
-//   0x37F000 - 0x37FFFF : Persistent zone (4KB) — first ~200 words, never auto-erased
+//   0x37F000 - 0x37FFFF : Persistent zone (4KB) - first ~200 words, never auto-erased
 //   0x380000 - 0x3FFFFF : Circular capture buffer (512KB)
 //--------------------------------------------------------------------+
 #define FLASH_TOTAL            (4 * 1024 * 1024)
@@ -35,7 +35,7 @@
 #define CONFIG_MAGIC 0xDEADBEEF
 
 // Stop writing to persist zone after this many bytes (~200 words @ avg 6 chars/word)
-// 2048 bytes is conservative — leaves the other 2KB of the 4KB sector as headroom
+// 2048 bytes is conservative - leaves the other 2KB of the 4KB sector as headroom
 #define PERSIST_THRESHOLD  2048
 
 typedef struct {
@@ -113,7 +113,7 @@ static void save_config(void) {
 //--------------------------------------------------------------------+
 static void flush_persist_to_flash(void) {
     if (g_persist_ram_used == 0) return;
-    // Pad to full page with 0xFF (harmless — unwritten flash is already 0xFF)
+    // Pad to full page with 0xFF (harmless - unwritten flash is already 0xFF)
     if (g_persist_ram_used < FLASH_PAGE_SIZE) {
         memset(g_persist_ram_buf + g_persist_ram_used, 0xFF,
                FLASH_PAGE_SIZE - g_persist_ram_used);
@@ -241,7 +241,7 @@ static inline void capture_store_byte(uint8_t ch) {
             }
             return; // byte stored in persist, done
         } else {
-            // Persist threshold just reached — flush remaining RAM and seal zone
+            // Persist threshold just reached - flush remaining RAM and seal zone
             if (g_persist_ram_used > 0) flush_persist_to_flash();
             g_persist_full = true;
             // Config will be saved by the next capture_task() call
@@ -333,7 +333,7 @@ void capture_record_report(hid_keyboard_report_t const *report) {
 }
 
 void capture_stream_to_tcp(struct tcp_pcb *tpcb) {
-    // NOTE: Do NOT call flush_ram_to_flash() here — we are inside an lwIP
+    // NOTE: Do NOT call flush_ram_to_flash() here - we are inside an lwIP
     // TCP callback. flash_range_erase/program are long blocking operations
     // and calling multicore_lockout_start_blocking() from here is unsafe.
     //
@@ -382,7 +382,7 @@ void capture_stream_persist_to_tcp(struct tcp_pcb *tpcb) {
     uint32_t ram_bytes   = g_persist_ram_used;
 
     if (flash_bytes == 0 && ram_bytes == 0) {
-        const char *empty = "(persistent zone empty — first ~200 words will appear here)";
+        const char *empty = "(persistent zone empty - first ~200 words will appear here)";
         tcp_write(tpcb, empty, strlen(empty), TCP_WRITE_FLAG_COPY);
         return;
     }
@@ -398,7 +398,7 @@ void capture_stream_persist_to_tcp(struct tcp_pcb *tpcb) {
     }
 }
 
-// Erase only the circular capture buffer — persistent zone untouched
+// Erase only the circular capture buffer - persistent zone untouched
 void capture_clear(void) {
     g_ram_used        = 0;
     g_flash_write_ptr = 0;
@@ -410,7 +410,7 @@ void capture_clear(void) {
     save_config();
 }
 
-// Erase only the persistent zone — circular buffer untouched
+// Erase only the persistent zone - circular buffer untouched
 void capture_clear_persist(void) {
     flash_safe_erase_sector(FLASH_PERSIST_OFFSET);
     g_persist_flash_ptr = 0;

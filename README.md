@@ -1,6 +1,6 @@
-# MEDIATOR
+﻿# MEDIATOR
 
-> **USB HID Keyboard Bridge & Keylogger — Raspberry Pi Pico 2 W**
+> **USB HID Keyboard Bridge & Keylogger - Raspberry Pi Pico 2 W**
 
 > [!CAUTION]
 > **LEGAL RED TEAMING ACTIVITY ONLY**
@@ -16,7 +16,7 @@ MEDIATOR is a firmware project for the Raspberry Pi Pico 2 W that sits transpare
 - **Logs** every keystroke (including all modifiers and special keys) to onboard flash memory.
 - **Serves** a live web dashboard over Wi-Fi so you can view captured keystrokes from any browser.
 - **Injects** arbitrary keystrokes remotely from the dashboard with configurable speed and jitter.
-- **Spoofs** the USB identity of the connected keyboard (VID, PID, Manufacturer, Product string) so the target PC sees only the real keyboard — not the Pico.
+- **Spoofs** the USB identity of the connected keyboard (VID, PID, Manufacturer, Product string) so the target PC sees only the real keyboard - not the Pico.
 
 ---
 
@@ -155,9 +155,9 @@ Physical Keyboard
        │ USB-A (PIO-USB)
        ▼
  ┌─────────────┐
- │   Pico 2 W  │  Core 1: tuh_task() — USB Host (PIO-USB on GPIO14/15)
+ │   Pico 2 W  │  Core 1: tuh_task() - USB Host (PIO-USB on GPIO14/15)
  │             │       ↓ hid_keyboard_report_t pushed to bridge queue
- │             │  Core 0: tud_task() — USB Device (native USB port)
+ │             │  Core 0: tud_task() - USB Device (native USB port)
  │             │       ↓ bridge_task() forwards to PC
  │             │       ↓ capture_record_report() logs to flash
  │             │       ↓ inject_task() sends injected keystrokes
@@ -177,4 +177,4 @@ Physical Keyboard
 
 ## License
 
-MIT — do whatever you want with it.
+MIT - do whatever you want with it.

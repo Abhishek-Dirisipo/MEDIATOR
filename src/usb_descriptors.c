@@ -1,9 +1,9 @@
-#include <string.h>
+﻿#include <string.h>
 #include "tusb.h"
 #include "usb_descriptors.h"
 
 //--------------------------------------------------------------------+
-// Mutable VID/PID — updated when real keyboard is detected
+// Mutable VID/PID - updated when real keyboard is detected
 //--------------------------------------------------------------------+
 static uint16_t g_vid = 0xCafe;
 static uint16_t g_pid = 0x4001;
@@ -45,14 +45,14 @@ void usb_descriptors_get_keyboard_id(uint16_t *vid, uint16_t *pid) {
 }
 
 //--------------------------------------------------------------------+
-// 1. HID Report Descriptor — Standard Boot Keyboard
+// 1. HID Report Descriptor - Standard Boot Keyboard
 //--------------------------------------------------------------------+
 uint8_t const desc_hid_report[] = {
     TUD_HID_REPORT_DESC_KEYBOARD()
 };
 
 //--------------------------------------------------------------------+
-// 2. Device Descriptor — pure HID (no CDC, no IAD)
+// 2. Device Descriptor - pure HID (no CDC, no IAD)
 //--------------------------------------------------------------------+
 static tusb_desc_device_t desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -72,7 +72,7 @@ static tusb_desc_device_t desc_device = {
 };
 
 //--------------------------------------------------------------------+
-// 3. Configuration Descriptor — HID only, one interface
+// 3. Configuration Descriptor - HID only, one interface
 //--------------------------------------------------------------------+
 #define EPNUM_HID     0x81
 

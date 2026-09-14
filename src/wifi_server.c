@@ -1,4 +1,4 @@
-#include "wifi_server.h"
+﻿#include "wifi_server.h"
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 #include "lwip/tcp.h"
@@ -113,7 +113,7 @@ static err_t http_sent(void *arg, struct tcp_pcb *tpcb, u16_t len) {
     return ERR_OK;
 }
 
-// Persistent accumulation buffer — survives across multiple tcp recv callbacks
+// Persistent accumulation buffer - survives across multiple tcp recv callbacks
 // for the same connection (large POST bodies span multiple TCP segments).
 static char     req_buf[16384];       // raw bytes accumulated so far
 static uint32_t req_accumulated = 0;  // bytes in req_buf
@@ -155,7 +155,7 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
 
     if (body_received < content_length) return ERR_OK; // need more data
 
-    // ---- Complete request received — process it ----
+    // ---- Complete request received - process it ----
     char    *req     = req_buf;
     uint32_t req_len = req_accumulated;
 
@@ -242,7 +242,7 @@ void wifi_server_task(void) {
         int status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
 
         if (status == CYW43_LINK_UP) {
-            // L2 up — also verify DHCP gave us an IP
+            // L2 up - also verify DHCP gave us an IP
             if (cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr != 0) {
                 wifi_connected = true;
             }

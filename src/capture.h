@@ -1,12 +1,12 @@
-#pragma once
+﻿#pragma once
 #include <stdint.h>
 #include <stdbool.h>
 #include "tusb.h"
 
-// Initialize capture subsystem. Always active — no jumper required.
+// Initialize capture subsystem. Always active - no jumper required.
 void capture_init(void);
 
-// Call in main loop — flushes RAM buffer to flash when 75% full.
+// Call in main loop - flushes RAM buffer to flash when 75% full.
 void capture_task(void);
 
 // Returns true (always capturing).

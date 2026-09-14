@@ -1,4 +1,4 @@
-# MEDIATOR — Technical Walkthrough
+﻿# MEDIATOR - Technical Walkthrough
 
 This document is a deep-dive technical reference for the MEDIATOR firmware. See `README.md` for a high-level overview and quick-start guide.
 
@@ -41,7 +41,7 @@ The PIO-USB host port is wired using a USB-A female breakout connector:
 | Core | Role | Key Functions |
 |---|---|---|
 | **Core 0** | USB Device (to PC) + Wi-Fi + Injection | `tud_task`, `bridge_task`, `capture_task`, `inject_task`, `wifi_server_task` |
-| **Core 1** | USB Host (from keyboard, PIO-USB) | `tuh_task` — timing-critical, must run on Core 1 |
+| **Core 1** | USB Host (from keyboard, PIO-USB) | `tuh_task` - timing-critical, must run on Core 1 |
 
 ### Boot Sequence (Core 0)
 ```
@@ -147,4 +147,4 @@ Rebuild and reflash.
 
 - Injection only supports standard ASCII printable characters. Non-ASCII Unicode is skipped.
 - Flash capture buffer is 60 KB. Once full, it wraps circularly (oldest data overwritten).
-- The TCP connection close logic relies on `tcp_sndbuf == TCP_SND_BUF` to detect a fully drained send buffer — this works reliably but may cause a slight delay before the browser sees `Connection: close`.
+- The TCP connection close logic relies on `tcp_sndbuf == TCP_SND_BUF` to detect a fully drained send buffer - this works reliably but may cause a slight delay before the browser sees `Connection: close`.

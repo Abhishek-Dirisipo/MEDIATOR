@@ -1,11 +1,11 @@
-#include <string.h>
+﻿#include <string.h>
 #include <stdlib.h>
 #include "pico/stdlib.h"
 #include "tusb.h"
 #include "inject.h"
 #include "hid_bridge.h"   // for bridge_inject_push_pair
 
-#define INJ_BUF_SIZE 16384   // 16 KB — enough for large scripts
+#define INJ_BUF_SIZE 16384   // 16 KB - enough for large scripts
 
 static char inj_buf[INJ_BUF_SIZE];
 static uint32_t inj_len = 0;
@@ -41,7 +41,7 @@ void inject_init(void) {
     // to '0'-'9', '.', etc.  The loop above processes them AFTER the
     // number-row entries (0x1E-0x27) and overwrites them.
     // With Num Lock OFF, numpad keycodes produce navigation keys (End,
-    // Home, etc.) instead of digits — so inject types garbage.
+    // Home, etc.) instead of digits - so inject types garbage.
     // Force the correct US-layout number-row and symbol keycodes here.
     // ---------------------------------------------------------------
     a2h['1'].keycode = HID_KEY_1;      a2h['1'].shift = false;
@@ -103,7 +103,7 @@ void inject_task(void) {
     hid_keyboard_report_t release = {0};
 
     // Push press+release pair to bridge inject queue.
-    // bridge_task owns all tud_hid_keyboard_report calls — no direct calls here.
+    // bridge_task owns all tud_hid_keyboard_report calls - no direct calls here.
     // If queue is full, retry next loop (no stall watchdog needed).
     if (bridge_inject_push_pair(&press, &release)) {
         inj_pos++;

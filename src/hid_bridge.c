@@ -1,4 +1,4 @@
-#include <string.h>
+﻿#include <string.h>
 #include "pico/stdlib.h"
 #include "hardware/sync.h"
 #include "tusb.h"
@@ -22,7 +22,7 @@ typedef struct {
 static bridge_t g_bridge;
 
 //--------------------------------------------------------------------+
-// Inject queue — owned entirely by Core 0, no cross-core access.
+// Inject queue - owned entirely by Core 0, no cross-core access.
 // Holds press+release pairs queued by inject_task; bridge_task sends
 // them with priority over physical keyboard reports.
 //--------------------------------------------------------------------+
@@ -57,11 +57,11 @@ bool bridge_push_report(hid_keyboard_report_t const *report) {
 }
 
 //--------------------------------------------------------------------+
-// Core 0 only — push press+release pair to inject queue
+// Core 0 only - push press+release pair to inject queue
 //--------------------------------------------------------------------+
 bool bridge_inject_push_pair(hid_keyboard_report_t const *press,
                               hid_keyboard_report_t const *release) {
-    // Both slots must fit — check before writing
+    // Both slots must fit - check before writing
     uint8_t n1 = (g_inj_tail + 1) % INJECT_QUEUE_SIZE;
     uint8_t n2 = (n1      + 1) % INJECT_QUEUE_SIZE;
     if (n1 == g_inj_head || n2 == g_inj_head) return false; // full
@@ -74,11 +74,11 @@ bool bridge_inject_push_pair(hid_keyboard_report_t const *press,
 }
 
 //--------------------------------------------------------------------+
-// Core 0 (device side) — forward queued reports to PC
+// Core 0 (device side) - forward queued reports to PC
 //
 // Priority order:
 //   1. Inject queue (press/release from inject_task)
-//   2. Physical keyboard queue — ONLY when inject not active
+//   2. Physical keyboard queue - ONLY when inject not active
 //
 // Physical keyboard is drained (discarded) while inject is active to
 // prevent physical zero-reports from cancelling injected keypresses.

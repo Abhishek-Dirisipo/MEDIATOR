@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <stdint.h>
 #include <stdbool.h>
 #include "tusb.h"
@@ -14,7 +14,7 @@ bool bridge_push_report(hid_keyboard_report_t const *report);
 
 // Push a press+release pair to the inject queue (called from inject_task on Core 0).
 // bridge_task sends inject queue items with priority over physical keyboard.
-// Returns false if the inject queue is full — caller should retry next iteration.
+// Returns false if the inject queue is full - caller should retry next iteration.
 bool bridge_inject_push_pair(hid_keyboard_report_t const *press,
                               hid_keyboard_report_t const *release);
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,7 +38,7 @@ extern "C" {
 #define CFG_TUD_MAX_SPEED       BOARD_TUD_MAX_SPEED
 #define CFG_TUD_ENDPOINT0_SIZE  64
 
-// Stealth: PC sees ONLY a HID keyboard — no CDC, no IAD, nothing extra
+// Stealth: PC sees ONLY a HID keyboard - no CDC, no IAD, nothing extra
 #define CFG_TUD_CDC             0
 #define CFG_TUD_HID             1
 
