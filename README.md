@@ -79,7 +79,7 @@ The Pico connects asynchronously to a Wi-Fi hotspot (retrying every 5 seconds if
 
 ![Dashboard UI](assets/dashboard.png)
 
-Navigate to `http://<pico-ip>` to:
+Navigate to `http://<pico-ip>` *(You can find this IP address by checking the "Connected Devices" list in your mobile hotspot settings)* to:
 - View all captured keystrokes.
 - Erase the flash buffer.
 - Inject arbitrary text with configurable speed and human-like jitter.
