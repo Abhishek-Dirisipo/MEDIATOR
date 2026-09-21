@@ -1,10 +1,14 @@
-﻿#include "wifi_server.h"
+#include "wifi_server.h"
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 #include "lwip/tcp.h"
 #include "pico/time.h"
+#include "tusb.h"
 #include "capture.h"
 #include "inject.h"
+
+// Keyboard mount state and USB device state exposed from main.c
+extern volatile bool g_kbd_mounted;
 
 #ifndef WIFI_SSID
 #define WIFI_SSID     "REDACTED_SSID"
@@ -14,6 +18,8 @@
 #endif
 
 static struct tcp_pcb *http_pcb;
+static bool wifi_connected = false;
+static uint32_t last_connect_attempt = 0;
 
 static const char HTML_HEAD[] =
 "HTTP/1.1 200 OK\r\n"
@@ -26,16 +32,37 @@ static const char HTML_HEAD[] =
 "body{background:#0d1117;color:#c9d1d9;font-family:monospace;padding:16px}"
 "button{background:#21262d;color:#c9d1d9;border:1px solid #30363d;padding:8px;cursor:pointer;border-radius:6px}"
 "button:hover{background:#30363d}"
-"pre{background:#000;padding:14px;border:1px solid #30363d;border-radius:6px;overflow:auto;min-height:100px;white-space:pre-wrap}"
+"pre{background:#000;padding:14px;border:1px solid #30363d;border-radius:6px;overflow-y:auto;min-height:250px;max-height:500px;white-space:pre-wrap}"
 ".bar{margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}"
 ".section{margin-bottom:20px}"
 ".persist-hdr{color:#f0b429;font-size:.8rem;margin-bottom:4px}"
+".dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}"
+".ok{background:#3fb950}.err{background:#f85149}.warn{background:#d29922}.idle{background:#484f58}"
+"#statusbar{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;align-items:center}"
 "</style></head><body>"
-"<h2 style='margin-bottom:16px'>MEDIATOR Capture</h2>"
+"<h2 style='margin-bottom:10px'>MEDIATOR</h2>"
+"<div id='statusbar'>"
+"<span id='s_kbd'><span class='dot idle'></span>Keyboard: --</span>"
+"<span id='s_usb'><span class='dot idle'></span>USB to PC: --</span>"
+"<span id='s_inj'><span class='dot idle'></span>Inject: --</span>"
+"<span id='s_wif'><span class='dot idle'></span>Wi-Fi: --</span>"
+"</div>"
+"<script>"
+"function updStatus(){"
+"fetch('/api/status').then(function(r){return r.json();}).then(function(d){"
+"function set(id,dot,txt){var el=document.getElementById(id);el.innerHTML=\"<span class='dot \"+dot+\"'></span>\"+txt;}"
+"set('s_kbd',d.kbd?'ok':'err','Keyboard: '+(d.kbd?'Connected':'Disconnected'));"
+"set('s_usb',d.usb?'ok':'err','USB to PC: '+(d.usb?'Enumerated':'Not detected'));"
+"set('s_inj',d.inj?'warn':'idle','Inject: '+(d.inj?'ACTIVE':'Idle'));"
+"set('s_wif',d.wif?'ok':'err','Wi-Fi: '+(d.wif?'Connected':'Connecting...'));"
+"}).catch(function(){});"
+"}"
+"updStatus();setInterval(updStatus,2000);"
+"</script>"
 "<div class='section'>"
 "<div class='bar'>"
-"<span style='color:#f0b429;font-weight:bold'>&#128274; Persistent Zone</span>"
-"<small style='color:#8b949e'>First ~200 words &mdash; never auto-erased</small>"
+"<span style='color:#f0b429;font-weight:bold'>&#128274; Persistent Zone (256 KB)</span>"
+"<small style='color:#8b949e'>50% split &mdash; never auto-erased</small>"
 "<form method='POST' action='/clearpersist' style='margin-left:auto'>"
 "<button type='submit' style='background:#5a1e1e;border-color:#8b2a2a;color:#ffa0a0'>Clear Persistent</button>"
 "</form></div>"
@@ -46,7 +73,8 @@ static const char HTML_MID[] =
 "</pre></div>"
 "<div class='section'>"
 "<div class='bar'>"
-"<span style='color:#58a6ff;font-weight:bold'>&#128190; Capture Buffer (512 KB circular)</span>"
+"<span style='color:#58a6ff;font-weight:bold'>&#128190; Capture Buffer (256 KB)</span>"
+"<small style='color:#8b949e'>50% split &mdash; circular overwrites itself</small>"
 "<button onclick='location.reload()' style='margin-left:auto'>Refresh</button>"
 "<form method='POST' action='/clear' style='display:inline'>"
 "<button type='submit'>Erase Flash</button>"
@@ -159,7 +187,22 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
     char    *req     = req_buf;
     uint32_t req_len = req_accumulated;
 
-    if (req_len >= 5 && strncmp(req, "GET /", 5) == 0) {
+    if (req_len >= 15 && strncmp(req, "GET /api/status", 15) == 0) {
+        char json[96];
+        snprintf(json, sizeof(json),
+                 "{\"kbd\":%d,\"usb\":%d,\"inj\":%d,\"wif\":%d}",
+                 g_kbd_mounted ? 1 : 0,
+                 tud_mounted() ? 1 : 0,
+                 inject_is_active() ? 1 : 0,
+                 wifi_connected ? 1 : 0);
+        char hdr[128];
+        snprintf(hdr, sizeof(hdr),
+                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Access-Control-Allow-Origin: *\r\nContent-Length: %u\r\n"
+                 "Connection: close\r\n\r\n", (unsigned)strlen(json));
+        tcp_write(tpcb, hdr,  (uint16_t)strlen(hdr),  TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
+        tcp_write(tpcb, json, (uint16_t)strlen(json),  TCP_WRITE_FLAG_COPY);
+    } else if (req_len >= 5 && strncmp(req, "GET /", 5) == 0) {
         tcp_write(tpcb, HTML_HEAD, sizeof(HTML_HEAD) - 1, TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
         capture_stream_persist_to_tcp(tpcb);
         tcp_write(tpcb, HTML_MID, sizeof(HTML_MID) - 1, TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
@@ -208,9 +251,6 @@ static err_t http_accept(void *arg, struct tcp_pcb *newpcb, err_t err) {
     tcp_err(newpcb, http_err);
     return ERR_OK;
 }
-
-static bool wifi_connected = false;
-static uint32_t last_connect_attempt = 0;
 
 void wifi_server_init(void) {
     if (cyw43_arch_init()) {

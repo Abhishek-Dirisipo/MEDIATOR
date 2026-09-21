@@ -1,4 +1,4 @@
-﻿#include <string.h>
+#include <string.h>
 #include <stdlib.h>
 #include "pico/stdlib.h"
 #include "tusb.h"
@@ -74,6 +74,9 @@ void inject_start(const char *text, uint32_t len, uint32_t speed_ms, bool jitter
     inj_speed = speed_ms;
     inj_jitter = jitter;
     next_action_time = to_ms_since_boot(get_absolute_time());
+    // Flush stale physical reports and schedule a zero-report so the PC
+    // sees all physical keys released before the first injected keycode.
+    bridge_pre_inject();
 }
 
 bool inject_is_active(void) {

@@ -1,4 +1,4 @@
-﻿#include <string.h>
+#include <string.h>
 #include "pico/stdlib.h"
 #include "hardware/sync.h"
 #include "tusb.h"
@@ -32,16 +32,22 @@ static hid_keyboard_report_t g_inj_q[INJECT_QUEUE_SIZE];
 static uint8_t g_inj_head = 0;
 static uint8_t g_inj_tail = 0;
 
+// Flag set by bridge_pre_inject() on Core 0.
+// bridge_task sends one zero-report before the first inject keycode so the
+// PC sees all physical keys released (prevents stuck keys like infinite TAB).
+static volatile bool g_pending_zero = false;
+
 void bridge_init(void) {
     memset(&g_bridge, 0, sizeof(g_bridge));
     int lock_num = spin_lock_claim_unused(true);
     g_bridge.lock = spin_lock_init(lock_num);
     g_inj_head = 0;
     g_inj_tail = 0;
+    g_pending_zero = false;
 }
 
 //--------------------------------------------------------------------+
-// Core 1 (host side) → push incoming keyboard report
+// Core 1 (host side) - push incoming keyboard report
 //--------------------------------------------------------------------+
 bool bridge_push_report(hid_keyboard_report_t const *report) {
     uint32_t save = spin_lock_blocking(g_bridge.lock);
@@ -54,6 +60,26 @@ bool bridge_push_report(hid_keyboard_report_t const *report) {
     }
     spin_unlock(g_bridge.lock, save);
     return ok;
+}
+
+// Core 1 safe: pushes an all-keys-released report.
+// Called from tuh_hid_umount_cb when keyboard disconnects so the PC
+// does not see any key stuck in the pressed state.
+void bridge_push_zero(void) {
+    hid_keyboard_report_t zero = {0};
+    bridge_push_report(&zero);
+}
+
+// Core 0 only: call from inject_start() before queueing any inject items.
+// Flushes the physical queue so no stale key-down events reach the PC
+// and schedules one zero-report (all keys up) to be sent next bridge_task
+// iteration - preventing stuck keys (e.g. TAB held forever) when inject
+// becomes active while a physical key was still pressed.
+void bridge_pre_inject(void) {
+    uint32_t save = spin_lock_blocking(g_bridge.lock);
+    g_bridge.head = g_bridge.tail; // discard stale physical reports
+    spin_unlock(g_bridge.lock, save);
+    g_pending_zero = true;         // schedule zero-report before first inject keycode
 }
 
 //--------------------------------------------------------------------+
@@ -77,14 +103,23 @@ bool bridge_inject_push_pair(hid_keyboard_report_t const *press,
 // Core 0 (device side) - forward queued reports to PC
 //
 // Priority order:
+//   0. Pending zero-report (inject start / keyboard disconnect cleanup)
 //   1. Inject queue (press/release from inject_task)
-//   2. Physical keyboard queue - ONLY when inject not active
-//
-// Physical keyboard is drained (discarded) while inject is active to
-// prevent physical zero-reports from cancelling injected keypresses.
+//   2. Drain physical queue while inject is active (prevents interleaving)
+//   3. Normal physical keyboard forwarding
 //--------------------------------------------------------------------+
 void bridge_task(void) {
     if (!tud_hid_ready()) return;
+
+    // --- Zero report (inject start or keyboard disconnect) ---
+    // Must fire BEFORE any inject keycode so the PC sees all physical
+    // keys released cleanly. g_pending_zero is Core-0-only, no lock needed.
+    if (g_pending_zero) {
+        g_pending_zero = false;
+        uint8_t zero[6] = {0};
+        tud_hid_keyboard_report(0, 0, zero);
+        return;
+    }
 
     // --- Inject queue (highest priority) ---
     if (g_inj_head != g_inj_tail) {

