@@ -1,209 +1,286 @@
-# MEDIATOR
+<div align="center">
 
-> **USB HID Keyboard Bridge & Keylogger For Red Teaming - Raspberry Pi Pico 2 W**
+# 🔴 MEDIATOR
 
-> [!CAUTION]
-> **LEGAL RED TEAMING ACTIVITY ONLY**
-> This tool is developed strictly for educational purposes, authorized security auditing, and legal Red Teaming engagements. Do not use this tool on any systems or networks for which you do not have explicit, written permission from the owner. The creator assumes no liability for misuse.
+### *USB HID Keyboard Interceptor for Red Team Engagements*
 
-> [!IMPORTANT]
-> **SECURITY NOTICE**
-> The default Wi-Fi credentials in `src/wifi_server.c` have been redacted (`REDACTED_SSID` and `REDACTED_PASSWORD`). You MUST configure your own hotspot credentials before compiling and flashing this firmware, otherwise the dashboard will not be accessible.
+[![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%20Pico%202%20W-c51a4a?style=for-the-badge&logo=raspberry-pi&logoColor=white)](https://www.raspberrypi.com/products/raspberry-pi-pico-2-w/)
+[![Language](https://img.shields.io/badge/Language-C%20%2F%20C%2B%2B-00599C?style=for-the-badge&logo=c&logoColor=white)](https://en.wikipedia.org/wiki/C_(programming_language))
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+[![Purpose](https://img.shields.io/badge/Purpose-Red%20Team%20Only-FF0000?style=for-the-badge&logo=hackthebox&logoColor=white)]()
 
-MEDIATOR is a firmware project for the Raspberry Pi Pico 2 W that sits transparently between a USB keyboard and a target PC. It:
-
-- **Bridges** all keystrokes in real-time from a physical keyboard to the PC with zero latency.
-- **Logs** every keystroke (including all modifiers and special keys) to onboard flash memory.
-- **Serves** a live web dashboard over Wi-Fi so you can view captured keystrokes from any browser.
-- **Injects** arbitrary keystrokes remotely from the dashboard with configurable speed and jitter.
-- **Spoofs** the USB identity of the connected keyboard (VID, PID, Manufacturer, Product string) so the target PC sees only the real keyboard - not the Pico.
+</div>
 
 ---
 
-## Hardware
+> [!CAUTION]
+> ## ⚠️ FOR AUTHORIZED RED TEAMING & SECURITY RESEARCH ONLY
+>
+> **MEDIATOR is a hardware keylogger and remote keystroke injector.**
+>
+> This device is capable of silently capturing every keystroke typed on a target keyboard and remotely typing arbitrary text into any target machine — completely invisibly, masquerading as the legitimate keyboard.
+>
+> **Using this device without explicit written authorization from the system/network owner is illegal and unethical.** This project exists solely for:
+> - **Authorized Red Team engagements** (physical penetration testing)
+> - **Security Research** in controlled lab environments
+> - **Educational purposes** to understand HID-layer attack surfaces
+>
+> The author assumes **zero liability** for any misuse. You are solely responsible for how you use this tool.
 
-![Hardware Setup](assets/hardware_setup.png)
+---
+
+> [!IMPORTANT]
+> **Wi-Fi Credentials are REDACTED in this repo.** Before building, open `src/wifi_server.c` and replace `REDACTED_SSID` and `REDACTED_PASSWORD` with your own hotspot credentials.
+
+---
+
+<div align="center">
+
+## 🎯 What is MEDIATOR?
+
+</div>
+
+MEDIATOR is a stealthy, hardware-level **USB HID man-in-the-middle** device built on the Raspberry Pi Pico 2 W. It physically sits in-line between a target keyboard and a target PC — completely transparent to the user.
+
+```
+ ⌨️  Physical Keyboard
+        │
+        │  USB-A (PIO-USB Host)
+        ▼
+ ┌──────────────────────────────┐
+ │      Raspberry Pi Pico 2 W   │
+ │                              │
+ │  Core 1 ──► USB Host (PIO)  │  ← intercepts all keystrokes
+ │  Core 0 ──► USB Device      │  ← forwards spoofed HID to PC
+ │           ► Flash Logger     │  ← silently logs everything
+ │           ► Wi-Fi Server     │  ← live dashboard in your browser
+ │           ► Key Injector     │  ← types remotely, invisibly
+ └──────────────────────────────┘
+        │
+        │  Native USB (spoofed as real keyboard VID/PID)
+        ▼
+ 🖥️  Target PC
+        
+        │  Wi-Fi (CYW43439)
+        ▼
+ 🌐  Your Browser → http://<pico-ip>
+```
+
+---
+
+## 🔥 Core Capabilities
+
+| Capability | Description |
+|:---:|:---|
+| 🕵️ **Hardware Keylogger** | Silently captures **every keystroke** - letters, modifiers, special keys, CAPS LOCK state - logged to flash memory that **survives reboots** |
+| ⌨️ **Remote Key Injector** | Type any text into the target PC **remotely via a browser** - with speed control and human-like jitter to defeat typing pattern detection |
+| 👻 **Identity Spoofing** | Reads the real keyboard's USB VID, PID, Manufacturer & Product string, then re-enumerates to the PC as **that exact keyboard** - Pico is invisible |
+| 💾 **Persistent Flash Storage** | 512 KB reserved flash split 50:50 between a **permanent zone** (never auto-erased) and a **circular rolling buffer** - data never lost on power-off |
+| 📡 **Live Wi-Fi Dashboard** | Serves a web UI over Wi-Fi with live keystroke view, status indicators, erase controls, and the injection panel |
+| 🔄 **Zero-Lag Bridging** | Keystroke forwarding runs on a dedicated core (Core 1) so capture and Wi-Fi overhead **never cause latency** to the user |
+
+---
+
+## 🧠 How It Works (Attack Flow)
+
+```
+  [Physical Keyboard]
+        │ plugs into
+  [MEDIATOR Pico 2W]   ◄──── Attacker connects to Pico's Wi-Fi dashboard
+        │ enumerates as  
+  [Target PC]          ◄──── PC sees only the real keyboard (spoofed VID/PID)
+```
+
+1. **Plug in** - MEDIATOR sits between the keyboard and PC. The PC re-enumerates it as the exact same keyboard (spoofed identity).
+2. **Capture** - Every HID report (keypress) is intercepted, decoded, and logged to flash. CAPS LOCK state, modifiers, and all special keys are captured with correct case tracking.
+3. **Exfiltrate** - Connect to the Pico's Wi-Fi hotspot from any device. Navigate to `http://<pico-ip>` to view the live keystroke log.
+4. **Inject** - From the same dashboard, type any text remotely. The Pico sends it as real HID keystrokes to the target PC.
+
+---
+
+## 📋 Logged Key Reference
+
+All special keys are stored as readable tags in the log. Case is tracked natively - CAPS LOCK state is internally tracked so uppercase/lowercase is always correct in the raw log.
+
+| Key | Logged As | Key | Logged As |
+|---|---|---|---|
+| Enter | `↵ (newline)` | Escape | `[ESC]` |
+| Backspace | `[BS]` | Tab | `[TAB]` |
+| Shift | `[SHIFT]` | Ctrl | `[CTRL]` |
+| Alt | `[ALT]` | Win / GUI | `[WIN]` |
+| Caps Lock | `[CAPS]` | Delete | `[DEL]` |
+| Insert | `[INS]` | Home / End | `[HOME]` `[END]` |
+| Page Up/Down | `[PGUP]` `[PGDN]` | Arrow Keys | `[UP]` `[DOWN]` `[LEFT]` `[RIGHT]` |
+| Function Keys | `[F1]` — `[F12]` | | |
+
+---
+
+## 💾 Flash Memory Layout
+
+```
+  4MB Flash (Pico 2W)
+  ├── [ Firmware & Code       ] ← 0x000000 – 0x37DFFF  (3.484 MB)
+  ├── [ Config Sector   4 KB  ] ← 0x37E000             (write pointers, survives reboot)
+  ├── [ Persistent Zone 256KB ] ← 0x37F000             (50% — NEVER auto-erased)
+  └── [ Circular Buffer 256KB ] ← 0x3BF000             (50% — overwrites oldest data)
+```
+
+- **Persistent Zone** - First bytes typed go here and are **never overwritten** automatically. Reserved for capturing high-value data at the start of a session (passwords, login sequences, etc.)
+- **Circular Buffer** - Once the persistent zone is full, all subsequent keystrokes go into this rolling buffer. When full, it wraps and overwrites the oldest data.
+- Both zones **survive power cuts and reboots** completely.
+
+---
+
+## 🖥️ Web Dashboard
+
+Navigate to `http://<pico-ip>` from any browser on the same Wi-Fi network.
+
+![Dashboard UI](assets/dashboard.png)
+
+The dashboard provides:
+- 🔒 **Persistent Zone viewer** - Shows the reserved never-erased log
+- 💾 **Capture Buffer viewer** - Shows the rolling circular log  
+- 📊 **Live status bar** - Keyboard connected, USB enumerated, Wi-Fi status, Inject active
+- 🗑️ **Clear controls** - Erase flash independently per zone
+- ⌨️ **Injection panel** - Type text remotely with speed control
+
+### Injection Speed Settings
+
+| Speed | Delay per Key |
+|:---:|:---:|
+| ⚡ Blazing | 10 ms |
+| 🔵 Fast | 50 ms |
+| 🟢 Normal | 100 ms |
+| 🟡 Slow | 200 ms |
+| 🤖 Human | 300 ms + random jitter |
+
+---
+
+## 🔧 Hardware
 
 | Component | Details |
 |---|---|
 | **Board** | Raspberry Pi Pico 2 W (RP2350) |
 | **Target keyboard** | Any standard USB HID keyboard |
-| **Connection to PC** | USB-A to micro-USB/USB-C cable (acting as device) |
-| **Connection to keyboard** | USB-A female breakout or OTG adapter (acting as host via PIO-USB) |
+| **To PC** | Pico's own USB port (native USB device) |
+| **To keyboard** | USB-A female breakout (PIO-USB host) |
 
-### Wiring (USB-A Breakout -> Pico)
+### Wiring
 
 ![Wiring Diagram](assets/wiring_diagram.png)
 
-| Wire | USB Color | Pico Pin |
-|---|---|---|
-| VBUS (5V) | Red | **Pin 40 (VBUS)** |
-| GND | Black | **Pin 38 (GND)** |
-| D- | White | **Pin 19 (GPIO 14)** |
-| D+ | Green | **Pin 20 (GPIO 15)** |
-
-> **Note:** The physical keyboard plugs into the USB-A female connector. The Pico's own USB port connects to the target PC.
-> You can connect the Black GND wire to **any** Ground (GND) pin on the Pico (e.g., Pin 3, 13, 18, 23, 28, 33, or 38).
+| USB Wire Color | Signal | Pico Pin |
+|:---:|:---:|:---:|
+| 🔴 Red | VBUS (5V) | **Pin 40 (VBUS)** |
+| ⚫ Black | GND | **Pin 38 (GND)** *(or any GND pin)* |
+| ⚪ White | D- | **Pin 19 (GPIO 14)** |
+| 🟢 Green | D+ | **Pin 20 (GPIO 15)** |
 
 ---
 
-## Features
-
-### Transparent Bridging
-Keystrokes are captured from the keyboard on Core 1 (PIO-USB host) and forwarded to the PC on Core 0 (native USB device) with no perceptible delay.
-
-### Identity Spoofing
-When the keyboard is detected, the Pico reads its USB VID, PID, Manufacturer, and Product strings, then briefly re-enumerates to the PC using that exact identity. No serial number is advertised (most keyboards don't have one).
-
-### Flash Capture
-All keystrokes are buffered in an 8 KB RAM ring buffer and flushed to a dedicated 60 KB region of the Pico's onboard flash. Data survives reboots.
-
-**Special keys are recorded as readable labels:**
-
-| Key | Logged As |
-|---|---|
-| Enter | (newline) |
-| Backspace | `[BS]` |
-| Escape | `[ESC]` |
-| Tab | `[TAB]` |
-| Shift | `[SHIFT]` |
-| Ctrl | `[CTRL]` |
-| Alt | `[ALT]` |
-| Win/GUI | `[WIN]` |
-| Arrow keys | `[UP]` `[DOWN]` `[LEFT]` `[RIGHT]` |
-| Function keys | `[F1]` … `[F12]` |
-| Delete / Insert | `[DEL]` `[INS]` |
-| Home / End | `[HOME]` `[END]` |
-| Page Up/Down | `[PGUP]` `[PGDN]` |
-| Caps Lock | `[CAPS]` |
-
-### Wi-Fi Dashboard
-The Pico connects asynchronously to a Wi-Fi hotspot (retrying every 5 seconds if unavailable) and serves a web dashboard on port 80.
-
-![Dashboard UI](assets/dashboard.png)
-
-Navigate to `http://<pico-ip>` *(You can find this IP address by checking the "Connected Devices" list in your mobile hotspot settings)* to:
-- View all captured keystrokes.
-- Erase the flash buffer.
-- Inject arbitrary text with configurable speed and human-like jitter.
-
-### Keystroke Injection
-From the dashboard, paste any text into the text box, pick a typing speed, toggle jitter, and press **Type It!** The Pico will type it out on the PC character by character using real HID reports.
-
-| Speed Block | Delay |
-|---|---|
-| Blazing | 10 ms |
-| Fast | 50 ms |
-| Normal | 100 ms |
-| Slow | 200 ms |
-| Human | 300 ms |
-
----
-
-## Project Structure
+## 🏗️ Project Structure
 
 ```
 MEDIATOR/
 ├── src/
-│   ├── main.c              # Core 0 main loop: USB device, Wi-Fi, injection
-│   ├── hid_bridge.c/.h     # Ring-buffer bridge between Core 0 and Core 1
-│   ├── capture.c/.h        # Flash-backed keystroke logger
-│   ├── inject.c/.h         # Keystroke injection engine
-│   ├── wifi_server.c/.h    # Async Wi-Fi + lwIP HTTP server + dashboard HTML
-│   ├── usb_descriptors.c/.h# Dynamic USB descriptor spoofing
-│   ├── tusb_config.h       # TinyUSB configuration (pure HID, no CDC)
-│   └── lwipopts.h          # lwIP tuning (TCP_SND_BUF, memory)
-├── CMakeLists.txt          # CMake build definition
-├── build_and_flash.ps1     # One-click build & flash script (Windows)
-├── WALKTHROUGH.md          # Detailed technical reference
-└── README.md               # This file
+│   ├── main.c               # Core 0 loop: USB device, Wi-Fi, injection orchestration
+│   ├── hid_bridge.c/.h      # Lock-free ring buffer bridging Core 0 ↔ Core 1
+│   ├── capture.c/.h         # Flash-backed keystroke logger (persistent + circular)
+│   ├── inject.c/.h          # Remote keystroke injection engine
+│   ├── wifi_server.c/.h     # Async Wi-Fi + lwIP HTTP server + live dashboard HTML
+│   ├── usb_descriptors.c/.h # Dynamic USB descriptor spoofing (VID/PID/strings)
+│   ├── tusb_config.h        # TinyUSB config (pure HID, no CDC)
+│   └── lwipopts.h           # lwIP tuning (TCP buffer sizes, memory)
+├── CMakeLists.txt            # CMake build definition
+├── build_and_flash.ps1       # One-click build + flash script (Windows)
+├── WALKTHROUGH.md            # Detailed technical internals reference
+└── README.md                 # This file
 ```
 
 ---
 
-## Building & Flashing
+## 🚀 Building & Flashing
 
 ### Prerequisites
-To build this project, you need the standard Raspberry Pi Pico C/C++ toolchain:
-- **Pico SDK 2.1.0** (or later)
+
+- **Pico SDK 2.1.0+**
 - **ARM GCC** (`arm-none-eabi-gcc`)
-- **CMake**
-- **Ninja**
+- **CMake** + **Ninja**
 
-On Windows, it is highly recommended to use the official [Pico Setup for Windows](https://github.com/raspberrypi/pico-setup-windows) installer.
+On Windows, use the official [Pico Setup for Windows](https://github.com/raspberrypi/pico-setup-windows) installer — it sets up everything automatically.
 
-### Quick Build & Flash (Windows)
+### Step 1 — Configure Wi-Fi
 
-We provide a portable PowerShell script that automates compiling and flashing:
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Abhishek-Dirisipo/MEDIATOR.git
-   ```
-2. **Configure Wi-Fi First:** Open `MEDIATOR/src/wifi_server.c` in a text editor (like Notepad or VS Code) and change `REDACTED_SSID` and `REDACTED_PASSWORD` to your mobile hotspot's exact name and password. Save the file.
-3. Open the **Pico Developer Command Prompt** (or any PowerShell terminal where the Pico SDK tools are in your PATH).
-4. Navigate to the `MEDIATOR` directory:
-   ```powershell
-   cd MEDIATOR
-   ```
-5. Run the build script:
-   ```powershell
-   .\build_and_flash.ps1
-   ```
-6. When prompted, put the Pico in **BOOTSEL mode**:
-   - Unplug the Pico from your computer.
-   - Press and hold down the **BOOTSEL** button (the small **white color button** on the Pico 2 W board).
-   - While holding the white button down, plug the Pico back into your computer via USB.
-   - Release the white button.
-7. The script will auto-detect the `RPI-RP2` drive, copy the compiled `.uf2` file, and reboot the Pico automatically.
-
-### Manual Build (Linux/macOS)
-
-```bash
-mkdir build
-cd build
-cmake ..
-make -j4
-# Copy bridge.uf2 to your mounted Pico RPI-RP2 drive
-```
-
-### Configuring Wi-Fi
-Edit the credentials at the top of `src/wifi_server.c`:
+Edit `src/wifi_server.c`:
 ```c
 #define WIFI_SSID     "YourHotspotName"
 #define WIFI_PASSWORD "YourPassword"
 ```
-Then rebuild and reflash.
+
+> [!WARNING]
+> **Never commit real credentials to a public repo.** The repo defaults are `REDACTED_SSID` / `REDACTED_PASSWORD` deliberately.
+
+### Step 2 — Build (Windows one-click)
+
+```powershell
+git clone https://github.com/Abhishek-Dirisipo/MEDIATOR.git
+cd MEDIATOR
+.\build_and_flash.ps1
+```
+
+### Step 3 — Flash to Pico
+
+1. **Unplug** the Pico.
+2. **Hold BOOTSEL** (the small white button on the board).
+3. **Plug in** via USB while holding BOOTSEL.
+4. **Release** the button — a drive called `RPI-RP2` will appear.
+5. The script auto-detects it and copies `bridge.uf2`. The Pico reboots automatically.
+
+### Manual Build (Linux / macOS)
+
+```bash
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+# Copy bridge.uf2 to the mounted RPI-RP2 drive
+```
 
 ---
 
-## Architecture
+## ⚙️ Architecture Deep Dive
 
 ```
-Physical Keyboard
-       │ USB-A (PIO-USB)
-       ▼
- ┌─────────────┐
- │   Pico 2 W  │  Core 1: tuh_task() - USB Host (PIO-USB on GPIO14/15)
- │             │       ↓ hid_keyboard_report_t pushed to bridge queue
- │             │  Core 0: tud_task() - USB Device (native USB port)
- │             │       ↓ bridge_task() forwards to PC
- │             │       ↓ capture_record_report() logs to flash
- │             │       ↓ inject_task() sends injected keystrokes
- │             │       ↓ wifi_server_task() polls lwIP / cyw43
- └─────────────┘
-       │ Native USB (spoofed HID keyboard)
-       ▼
-   Target PC
+Core 1 (USB Host — PIO-USB, timing-critical)
+  └── tuh_task()
+        └── tuh_hid_report_received_cb()
+              ├── bridge_push_report()    → shared ring buffer → Core 0
+              └── capture_record_report() → flash logger
 
-       │ Wi-Fi (CYW43)
-       ▼
-  Browser Dashboard
-  http://<pico-ip>
+Core 0 (USB Device + Wi-Fi + everything else)
+  ├── tud_task()           → USB HID device (spoofed keyboard to PC)
+  ├── bridge_task()        → pops ring buffer → sends to PC via HID
+  ├── capture_task()       → flushes RAM buffer to flash (5s inactivity timer)
+  ├── inject_task()        → timed keystroke injection from dashboard
+  └── wifi_server_task()   → lwIP + HTTP server + /api/status polling
+
+Flash
+  ├── Config Sector (4KB)  → write pointers, persistent across reboots
+  ├── Persist Zone (256KB) → never auto-erased, first-in data
+  └── Circular Zone (256KB)→ rolling overwrite when full
 ```
 
 ---
 
-## License
+## 📄 License
 
-MIT - do whatever you want with it.
+MIT — do whatever you want with it, responsibly.
+
+---
+
+<div align="center">
+
+**Built for the curious, the researchers, and the authorized.**
+
+*Not for the malicious.*
+
+</div>
