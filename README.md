@@ -158,6 +158,8 @@ The dashboard provides:
 
 ## Hardware
 
+![Physical Build](assets/physical_build.jpg)
+
 | Component | Details |
 |---|---|
 | **Board** | Raspberry Pi Pico 2 W (RP2350) |
