@@ -34,14 +34,22 @@
 // Config magic to detect a valid configuration sector
 #define CONFIG_MAGIC 0xDEADBEEF
 
+// Layout fingerprint: XOR of all zone sizes and offsets.
+// If you change FLASH_PERSIST_SIZE or FLASH_CAPTURE_SIZE, this value changes,
+// and capture_init() will detect the mismatch, discard the stale config, and
+// start clean - preventing false g_persist_full or wrong write pointers.
+#define LAYOUT_FINGERPRINT  (FLASH_PERSIST_SIZE ^ FLASH_CAPTURE_SIZE ^ \
+                             FLASH_PERSIST_OFFSET ^ FLASH_CAPTURE_OFFSET)
+
 // Stop writing to persist zone when it's full (reserve 1 page for safety)
 #define PERSIST_THRESHOLD  (FLASH_PERSIST_SIZE - FLASH_PAGE_SIZE)
 
 typedef struct {
     uint32_t magic;
+    uint32_t layout_fingerprint; // detects layout changes across firmware updates
     uint32_t capture_write_ptr;  // byte offset into circular capture area
     uint32_t persist_write_ptr;  // bytes committed to persist flash zone
-    uint8_t  _pad[FLASH_PAGE_SIZE - 12];
+    uint8_t  _pad[FLASH_PAGE_SIZE - 16];
 } __attribute__((packed)) flash_config_t;
 
 //--------------------------------------------------------------------+
@@ -100,9 +108,10 @@ static void save_config(void) {
     memset(page_buf, 0xFF, sizeof(page_buf));
 
     flash_config_t *cfg = (flash_config_t *)page_buf;
-    cfg->magic             = CONFIG_MAGIC;
-    cfg->capture_write_ptr = g_flash_write_ptr;
-    cfg->persist_write_ptr = g_persist_flash_ptr;
+    cfg->magic              = CONFIG_MAGIC;
+    cfg->layout_fingerprint = LAYOUT_FINGERPRINT;
+    cfg->capture_write_ptr  = g_flash_write_ptr;
+    cfg->persist_write_ptr  = g_persist_flash_ptr;
 
     flash_safe_erase_sector(FLASH_CONFIG_OFFSET);
     flash_safe_program(FLASH_CONFIG_OFFSET, page_buf, FLASH_PAGE_SIZE);
@@ -172,21 +181,30 @@ void capture_init(void) {
     g_total_captured    = 0;
     g_persist_ram_used  = 0;
     g_persist_full      = false;
+    g_flash_write_ptr   = 0;
+    g_persist_flash_ptr = 0;
 
     // Read write pointers from config sector
     const flash_config_t *cfg = (const flash_config_t *)FLASH_CONFIG_ADDR;
     if (cfg->magic == CONFIG_MAGIC) {
-        g_flash_write_ptr   = cfg->capture_write_ptr % FLASH_CAPTURE_SIZE;
-        g_total_captured    = g_flash_write_ptr;
-        // Guard against garbage from old firmware (no persist field)
-        g_persist_flash_ptr = (cfg->persist_write_ptr <= FLASH_PERSIST_SIZE)
-                              ? cfg->persist_write_ptr : 0;
-        if (g_persist_flash_ptr >= PERSIST_THRESHOLD) {
-            g_persist_full = true;
+        // Check layout fingerprint - if the persist/capture sizes changed since
+        // this config was written, the stored pointers are invalid for the new
+        // layout. Discard them and start fresh to prevent false g_persist_full
+        // and wrong write pointers after a firmware update.
+        if (cfg->layout_fingerprint != LAYOUT_FINGERPRINT) {
+            // Layout changed - start clean. Old data is still in flash at the
+            // old addresses but we cannot safely append to it.
+            g_flash_write_ptr   = 0;
+            g_persist_flash_ptr = 0;
+        } else {
+            g_flash_write_ptr   = cfg->capture_write_ptr % FLASH_CAPTURE_SIZE;
+            g_total_captured    = g_flash_write_ptr;
+            g_persist_flash_ptr = (cfg->persist_write_ptr <= FLASH_PERSIST_SIZE)
+                                  ? cfg->persist_write_ptr : 0;
+            if (g_persist_flash_ptr >= PERSIST_THRESHOLD) {
+                g_persist_full = true;
+            }
         }
-    } else {
-        g_flash_write_ptr   = 0;
-        g_persist_flash_ptr = 0;
     }
 
     g_was_active = true;
@@ -217,7 +235,7 @@ uint32_t capture_get_total(void) {
 void capture_task(void) {
     uint32_t now = to_ms_since_boot(get_absolute_time());
     static uint32_t last_flush_ms = 0;
-    bool time_to_flush = (now - last_flush_ms >= 5000);
+    bool time_to_flush = (now - last_flush_ms >= 1000); // flush after 1s inactivity
     bool flushed_anything = false;
 
     // Flush persist RAM to flash when full OR after 5s of inactivity

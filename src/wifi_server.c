@@ -120,9 +120,51 @@ static const char RESP_REDIRECT[] = "HTTP/1.1 303 See Other\r\nLocation: /\r\nCo
 static const char RESP_OK[]       = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK";
 static const char RESP_404[]      = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
 
-static void http_err(void *arg, err_t err) {
-    (void)arg; (void)err;
-}
+// Flash dump page - fetches all chunks via JS and downloads as a file
+static const char DUMP_PAGE[] =
+"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"
+"<!DOCTYPE html><html><head><title>MEDIATOR Flash Dump</title>"
+"<style>body{background:#0d1117;color:#c9d1d9;font-family:monospace;padding:20px}"
+"button{background:#238636;color:#fff;border:1px solid #2ea043;padding:10px 20px;"
+"border-radius:6px;cursor:pointer;font-size:1rem;margin:8px}"
+"#status{margin-top:16px;color:#f0b429}</style></head><body>"
+"<h2>MEDIATOR - Flash Dump Recovery</h2>"
+"<p>This will read the last 576 KB of raw flash memory and download it as <b>flash_dump.bin</b>.</p>"
+"<p>Start offset: <code>0x370000</code> &mdash; Length: <code>576 KB</code></p>"
+"<button onclick='startDump()'>Download flash_dump.bin</button>"
+"<div id='status'></div>"
+"<script>"
+"function startDump(){"
+"var START=0x370000,TOTAL=0x90000,CHUNK=8192;"
+"var chunks=[],offset=START;"
+"var status=document.getElementById('status');"
+"status.textContent='Starting...';"
+"function next(){"
+"if(offset>=START+TOTAL){"
+"var blob=new Blob(chunks,{type:'application/octet-stream'});"
+"var a=document.createElement('a');"
+"a.href=URL.createObjectURL(blob);"
+"a.download='flash_dump.bin';"
+"a.click();"
+"status.textContent='Done! Saved flash_dump.bin (' + (TOTAL/1024) + ' KB)';"
+"return;"
+"}"
+"var l=Math.min(CHUNK,START+TOTAL-offset);"
+"status.textContent='Reading offset 0x'+offset.toString(16)+' ('+Math.round((offset-START)*100/TOTAL)+'%)';"
+"fetch('/api/read?o='+offset+'&l='+l)"
+".then(function(r){return r.arrayBuffer();})"
+".then(function(buf){chunks.push(buf);offset+=l;setTimeout(next,200);})"
+".catch(function(e){status.textContent='Error at 0x'+offset.toString(16)+': '+e;});"
+"}"
+"next();"
+"}"
+"</script></body></html>";
+
+// Streaming state for /text and /dump endpoints
+// Only one streaming connection is supported at a time.
+#define STREAM_CHUNK  2048  // bytes to send per http_sent callback
+static uint32_t g_stream_pos = 0;
+static uint32_t g_stream_end = 0;
 
 static void http_close(struct tcp_pcb *tpcb) {
     tcp_arg(tpcb, NULL);
@@ -133,10 +175,42 @@ static void http_close(struct tcp_pcb *tpcb) {
     tcp_close(tpcb);
 }
 
+static void stream_next(struct tcp_pcb *tpcb) {
+    if (g_stream_pos >= g_stream_end) {
+        http_close(tpcb);
+        return;
+    }
+    uint32_t available = tcp_sndbuf(tpcb);
+    if (available == 0) return;
+
+    uint32_t remaining = g_stream_end - g_stream_pos;
+    uint32_t to_send   = remaining < STREAM_CHUNK ? remaining : STREAM_CHUNK;
+    if (to_send > available) to_send = available;
+
+    bool is_last = (g_stream_pos + to_send >= g_stream_end);
+    uint8_t flags = TCP_WRITE_FLAG_COPY;
+    if (!is_last) flags |= TCP_WRITE_FLAG_MORE;
+
+    err_t err = tcp_write(tpcb,
+                          (const uint8_t *)(XIP_BASE + g_stream_pos),
+                          (uint16_t)to_send, flags);
+    if (err == ERR_OK) {
+        g_stream_pos += to_send;
+        tcp_output(tpcb);
+    }
+}
+
+static void http_err(void *arg, err_t err) {
+    (void)arg; (void)err;
+    g_stream_pos = g_stream_end;
+}
+
 static err_t http_sent(void *arg, struct tcp_pcb *tpcb, u16_t len) {
     (void)arg; (void)len;
-    if (tcp_sndbuf(tpcb) == TCP_SND_BUF) {
-        http_close(tpcb);
+    if (g_stream_pos < g_stream_end) {
+        stream_next(tpcb); // feed next chunk
+    } else {
+        http_close(tpcb);  // all done
     }
     return ERR_OK;
 }
@@ -202,6 +276,57 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
                  "Connection: close\r\n\r\n", (unsigned)strlen(json));
         tcp_write(tpcb, hdr,  (uint16_t)strlen(hdr),  TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
         tcp_write(tpcb, json, (uint16_t)strlen(json),  TCP_WRITE_FLAG_COPY);
+    } else if (req_len >= 14 && strncmp(req, "GET /api/read?", 14) == 0) {
+        uint32_t offset = 0;
+        uint32_t len = 0;
+        char *o_ptr = strstr(req, "o=");
+        if (o_ptr) offset = (uint32_t)atoi(o_ptr + 2);
+        char *l_ptr = strstr(req, "l=");
+        if (l_ptr) len = (uint32_t)atoi(l_ptr + 2);
+
+        if (len > 8192) len = 8192; // keep within lwIP memory pool
+
+        char hdr[128];
+        snprintf(hdr, sizeof(hdr),
+                 "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
+                 "Access-Control-Allow-Origin: *\r\nContent-Length: %u\r\n"
+                 "Connection: close\r\n\r\n", (unsigned)len);
+
+        tcp_write(tpcb, hdr, (uint16_t)strlen(hdr), TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
+
+        // Write XIP flash data in small 1KB chunks with COPY so lwIP can buffer it safely
+        const uint8_t *src = (const uint8_t *)(XIP_BASE + offset);
+        uint32_t remaining = len;
+        while (remaining > 0) {
+            uint16_t chunk = (remaining > 1024) ? 1024 : (uint16_t)remaining;
+            uint8_t flags = TCP_WRITE_FLAG_COPY;
+            if (remaining > chunk) flags |= TCP_WRITE_FLAG_MORE;
+            tcp_write(tpcb, src, chunk, flags);
+            src       += chunk;
+            remaining -= chunk;
+        }
+    } else if (req_len >= 9 && strncmp(req, "GET /dump", 9) == 0) {
+        // Stream entire last 576KB of flash as a binary file download (single connection)
+        static const char dump_hdr[] =
+            "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
+            "Content-Disposition: attachment; filename=\"flash_dump.bin\"\r\n"
+            "Content-Length: 589824\r\n"   // 576 KB = 0x90000
+            "Connection: close\r\n\r\n";
+        g_stream_pos = 0x370000;           // start of our reserved region
+        g_stream_end = 0x370000 + 0x90000; // 576 KB
+        tcp_write(tpcb, dump_hdr, sizeof(dump_hdr) - 1, TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
+        stream_next(tpcb);
+        return ERR_OK; // don't fall through to the normal close logic below
+    } else if (req_len >= 9 && strncmp(req, "GET /text", 9) == 0) {
+        // Stream persist zone as plain text so you can read it directly in browser
+        static const char text_hdr[] =
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\n"
+            "Connection: close\r\n\r\n";
+        g_stream_pos = 0x37F000;           // FLASH_PERSIST_OFFSET (hardcoded, layout-safe)
+        g_stream_end = 0x37F000 + (256 * 1024); // full 256KB persist zone
+        tcp_write(tpcb, text_hdr, sizeof(text_hdr) - 1, TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
+        stream_next(tpcb);
+        return ERR_OK;
     } else if (req_len >= 5 && strncmp(req, "GET /", 5) == 0) {
         tcp_write(tpcb, HTML_HEAD, sizeof(HTML_HEAD) - 1, TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
         capture_stream_persist_to_tcp(tpcb);

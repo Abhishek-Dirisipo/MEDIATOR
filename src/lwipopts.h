@@ -20,13 +20,13 @@
 #define TCP_WND                     65000
 #define TCP_SND_BUF                 65000
 #define TCP_SND_QUEUELEN            128
-#define MEM_SIZE                    24000
-#define MEMP_NUM_TCP_PCB            4
+#define MEM_SIZE                    40000
+#define MEMP_NUM_TCP_PCB            16
 #define MEMP_NUM_TCP_PCB_LISTEN     4
 #define MEMP_NUM_TCP_SEG            128
 #define MEMP_NUM_SYS_TIMEOUT        10
-#define MEMP_NUM_PBUF               32
-#define PBUF_POOL_SIZE              16
+#define MEMP_NUM_PBUF               64
+#define PBUF_POOL_SIZE              32
 #define LWIP_DISABLE_TCP_SANITY_CHECKS 1
 #define LWIP_ALTCP                  0
 #define LWIP_ALTCP_TLS              0
